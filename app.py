@@ -7,31 +7,44 @@ import os
 
 app = FastAPI()
 
-# Download model if not already downloaded
+# -----------------------------
+# Step 1: Download model from Google Drive if not already exists
+# -----------------------------
 MODEL_PATH = "full_driver_drowsiness_model.pth"
 if not os.path.exists(MODEL_PATH):
-    url = "https://drive.google.com/uc?id=FILE_ID"  # Replace FILE_ID from your link
+    url = "https://drive.google.com/uc?id=1ebH7LuOb3H8zvbptlpuPNQTNxBhTBkkO"  # Your Google Drive FILE_ID
+    print("Downloading model from Google Drive...")
     gdown.download(url, MODEL_PATH, quiet=False)
 
-# Load model
+# -----------------------------
+# Step 2: Load model
+# -----------------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = torch.load(MODEL_PATH, map_location=device)
 model.eval()
 
-# Image transformation
+# -----------------------------
+# Step 3: Define image transformation
+# -----------------------------
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.5]*3, [0.5]*3)
+    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
+# -----------------------------
+# Step 4: API endpoint for prediction
+# -----------------------------
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    # Load uploaded image
     image = Image.open(file.file).convert("RGB")
     image_tensor = transform(image).unsqueeze(0).to(device)
 
+    # Make prediction
     with torch.no_grad():
         output = model(image_tensor)
+        # Binary classification: 0 = Drowsy, 1 = Non-Drowsy
         prediction = "Non-Drowsy" if output.item() > 0.5 else "Drowsy"
         confidence = output.item() if output.item() > 0.5 else 1 - output.item()
 
