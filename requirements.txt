@@ -1,6 +1,6 @@
+flask
 torch
 torchvision
-fastapi
-uvicorn
 pillow
 gdown
+gunicorn
