@@ -1,51 +1,86 @@
-from fastapi import FastAPI, File, UploadFile
-from PIL import Image
-import torch
-from torchvision import transforms
-import gdown
 import os
+import torch
+import torch.nn as nn
+import gdown
+from flask import Flask, render_template, request
+from PIL import Image
+import torchvision.transforms as transforms
 
-app = FastAPI()
+app = Flask(__name__)
 
-# -----------------------------
-# Step 1: Download model from Google Drive if not already exists
-# -----------------------------
+# =========================
+# Model Architecture (MUST match training)
+# =========================
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(3, 32, 3)
+        self.pool = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(32, 64, 3)
+        self.conv3 = nn.Conv2d(64, 128, 3)
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(128*26*26, 128)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(128,1)
+
+    def forward(self,x):
+        x = torch.relu(self.conv1(x))
+        x = self.pool(x)
+        x = torch.relu(self.conv2(x))
+        x = self.pool(x)
+        x = torch.relu(self.conv3(x))
+        x = self.pool(x)
+        x = self.flatten(x)
+        x = torch.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = torch.sigmoid(self.fc2(x))
+        return x
+
+# =========================
+# Download Model From Google Drive
+# =========================
 MODEL_PATH = "full_driver_drowsiness_model.pth"
+
 if not os.path.exists(MODEL_PATH):
-    url = "https://drive.google.com/uc?id=1ebH7LuOb3H8zvbptlpuPNQTNxBhTBkkO"  # Your Google Drive FILE_ID
-    print("Downloading model from Google Drive...")
+    url = "https://drive.google.com/uc?id=1ebH7LuOb3H8zvbptlpuPNQTNxBhTBkkO"
     gdown.download(url, MODEL_PATH, quiet=False)
 
-# -----------------------------
-# Step 2: Load model
-# -----------------------------
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = torch.load(MODEL_PATH, map_location=device)
+# =========================
+# Load Model
+# =========================
+device = torch.device("cpu")
+model = CNN().to(device)
+model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 model.eval()
 
-# -----------------------------
-# Step 3: Define image transformation
-# -----------------------------
+# =========================
+# Image Transform
+# =========================
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((224,224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
-# -----------------------------
-# Step 4: API endpoint for prediction
-# -----------------------------
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    # Load uploaded image
-    image = Image.open(file.file).convert("RGB")
-    image_tensor = transform(image).unsqueeze(0).to(device)
+# =========================
+# Routes
+# =========================
+@app.route("/", methods=["GET", "POST"])
+def home():
+    prediction = None
+    confidence = None
 
-    # Make prediction
-    with torch.no_grad():
-        output = model(image_tensor)
-        # Binary classification: 0 = Drowsy, 1 = Non-Drowsy
-        prediction = "Non-Drowsy" if output.item() > 0.5 else "Drowsy"
-        confidence = output.item() if output.item() > 0.5 else 1 - output.item()
+    if request.method == "POST":
+        file = request.files["file"]
+        image = Image.open(file).convert("RGB")
+        image = transform(image).unsqueeze(0)
 
-    return {"prediction": prediction, "confidence": confidence}
+        with torch.no_grad():
+            output = model(image)
+            prob = output.item()
+            prediction = "Non-Drowsy" if prob > 0.5 else "Drowsy"
+            confidence = round(prob, 4)
+
+    return render_template("index.html", prediction=prediction, confidence=confidence)
+
+if __name__ == "__main__":
+    app.run(debug=True)
