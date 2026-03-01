@@ -37,9 +37,9 @@ class CNN(nn.Module):
         return x
 
 # =========================
-# Download Model from Google Drive
+# Download Model From Google Drive
 # =========================
-MODEL_PATH = "model.pth"
+MODEL_PATH = "full_driver_drowsiness_model.pth"
 
 if not os.path.exists(MODEL_PATH):
     url = "https://drive.google.com/uc?id=1ebH7LuOb3H8zvbptlpuPNQTNxBhTBkkO"
@@ -86,5 +86,5 @@ def home():
 # Run App
 # =========================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
