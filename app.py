@@ -1,27 +1,23 @@
-import os
-from flask import Flask, request, render_template
-from PIL import Image
+from flask import Flask, render_template, request
 import torch
 import torch.nn as nn
-import torchvision.transforms as transforms
+from PIL import Image
+import numpy as np
 
-# ----------------------------
-# Define CNN model architecture
-# ----------------------------
+app = Flask(__name__)
+
+# CNN model
 class CNNModel(nn.Module):
     def __init__(self):
         super(CNNModel, self).__init__()
-
         self.conv = nn.Sequential(
             nn.Conv2d(3, 16, 3),
             nn.ReLU(),
             nn.MaxPool2d(2),
-
             nn.Conv2d(16, 32, 3),
             nn.ReLU(),
             nn.MaxPool2d(2)
         )
-
         self.fc = nn.Sequential(
             nn.Linear(32*54*54, 128),
             nn.ReLU(),
@@ -34,51 +30,26 @@ class CNNModel(nn.Module):
         x = self.fc(x)
         return x
 
-# ----------------------------
-# Initialize model and load weights
-# ----------------------------
-device = torch.device('cpu')
+# Load model
 model = CNNModel()
-model_path = os.path.join(os.getcwd(), "driver_drowsiness_model.pth")
-model.load_state_dict(torch.load(model_path, map_location=device))
+model.load_state_dict(torch.load("driver_drowsiness_model.pth", map_location='cpu'))
 model.eval()
 
-# ----------------------------
-# Image preprocessing
-# ----------------------------
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Make sure it matches your training size
-    transforms.ToTensor(),
-    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-])
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# ----------------------------
-# Flask app setup
-# ----------------------------
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/predict", methods=["POST"])
+# Add route to predict drowsiness from uploaded image
+@app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
-        return "No file uploaded.", 400
+    file = request.files['image']
+    img = Image.open(file).convert('RGB')
+    img = img.resize((224,224))  # adjust to model input size
+    img = np.array(img).transpose((2,0,1))/255.0
+    img = torch.tensor(img, dtype=torch.float).unsqueeze(0)
+    output = model(img)
+    _, pred = torch.max(output, 1)
+    return "Drowsy" if pred.item()==1 else "Not Drowsy"
 
-    file = request.files['file']
-    img = Image.open(file).convert("RGB")
-    img = transform(img).unsqueeze(0)  # Add batch dimension
-
-    with torch.no_grad():
-        output = model(img)
-        _, predicted = torch.max(output, 1)
-        result = "Drowsy" if predicted.item() == 1 else "Not Drowsy"
-
-    return render_template("index.html", prediction=result)
-
-# ----------------------------
-# Run Flask
-# ----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), debug=True)
+    app.run(host="0.0.0.0", port=5000)
