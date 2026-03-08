@@ -6,7 +6,6 @@ import numpy as np
 
 app = Flask(__name__)
 
-# CNN model (must match training architecture)
 class CNNModel(nn.Module):
     def __init__(self):
         super(CNNModel, self).__init__()
@@ -27,7 +26,7 @@ class CNNModel(nn.Module):
 
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(64 * 26 * 26, 128),
+            nn.Linear(64*26*26, 128),
             nn.ReLU(),
             nn.Linear(128, 2)
         )
@@ -38,7 +37,6 @@ class CNNModel(nn.Module):
         return x
 
 
-# Load model
 model = CNNModel()
 model.load_state_dict(torch.load("driver_drowsiness_model.pth", map_location="cpu"))
 model.eval()
@@ -54,18 +52,18 @@ def predict():
     file = request.files["image"]
 
     img = Image.open(file).convert("RGB")
-    img = img.resize((224, 224))
+    img = img.resize((224,224))
 
-    img = np.array(img) / 255.0
-    img = np.transpose(img, (2, 0, 1))
-    img = torch.tensor(img, dtype=torch.float32).unsqueeze(0)
+    img = np.array(img)/255.0
+    img = np.transpose(img,(2,0,1))
+    img = torch.tensor(img,dtype=torch.float32).unsqueeze(0)
 
     with torch.no_grad():
         output = model(img)
-        _, pred = torch.max(output, 1)
+        _,pred = torch.max(output,1)
 
-    return "Drowsy" if pred.item() == 1 else "Not Drowsy"
+    return "Drowsy" if pred.item()==1 else "Not Drowsy"
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0",port=5000)
