@@ -53,17 +53,25 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    data = request.data
+    img = None
 
-    if not data:
+    # 1️⃣ Check file upload
+    if "image" in request.files:
+        file = request.files["image"]
+        if file.filename != "":
+            img = Image.open(file).convert("RGB")
+
+    # 2️⃣ Check webcam base64 image
+    elif request.data:
+        data = request.data.decode("utf-8")
+        image_data = data.split(",")[1]
+        image_bytes = base64.b64decode(image_data)
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    if img is None:
         return "No image received"
 
-    image_data = data.split(b',')[1]
-    image_bytes = base64.b64decode(image_data)
-
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize((224,224))
-
     img = np.array(img)/255.0
     img = np.transpose(img,(2,0,1))
     img = torch.tensor(img,dtype=torch.float32).unsqueeze(0)
