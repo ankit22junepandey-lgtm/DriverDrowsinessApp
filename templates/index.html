@@ -1,32 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Driver Drowsiness Detection</title>
-</head>
-
-<body>
-
-<h2>Driver Drowsiness Detection</h2>
-
-<h3>Upload Image</h3>
-<form action="/predict" method="post" enctype="multipart/form-data">
-<input type="file" name="image" required>
-<button type="submit">Predict</button>
-</form>
-
-<hr>
-
-<h3>Webcam Detection</h3>
-
-<video id="video" width="320" height="240" autoplay></video>
-<br><br>
-
-<button onclick="capture()">Capture & Predict</button>
-
-<canvas id="canvas" width="224" height="224" style="display:none;"></canvas>
-
-<h3 id="result"></h3>
-
 <script>
 
 navigator.mediaDevices.getUserMedia({video:true})
@@ -42,20 +13,23 @@ let ctx = canvas.getContext("2d");
 
 ctx.drawImage(video,0,0,224,224);
 
-let data = canvas.toDataURL("image/jpeg");
+// convert image to blob
+canvas.toBlob(function(blob){
+
+let formData = new FormData();
+formData.append("image", blob, "webcam.jpg");
 
 fetch("/predict",{
 method:"POST",
-body:data
+body:formData
 })
 .then(res=>res.text())
 .then(data=>{
-document.getElementById("result").innerText="Prediction: "+data;
+document.getElementById("result").innerText = "Prediction: " + data;
 });
+
+},"image/jpeg");
 
 }
 
 </script>
-
-</body>
-</html>
