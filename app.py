@@ -3,10 +3,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 from PIL import Image
+import base64
+import io
 
 app = Flask(__name__)
 
-# CNN Model
 class CNNModel(nn.Module):
     def __init__(self):
         super(CNNModel, self).__init__()
@@ -39,9 +40,8 @@ class CNNModel(nn.Module):
         return x
 
 
-# Load model
 model = CNNModel()
-model.load_state_dict(torch.load("driver_drowsiness_model.pth", map_location=torch.device("cpu")))
+model.load_state_dict(torch.load("driver_drowsiness_model.pth", map_location="cpu"))
 model.eval()
 
 
@@ -53,25 +53,27 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    file = request.files["image"]
+    data = request.data
 
-    img = Image.open(file).convert("RGB")
-    img = img.resize((224, 224))
+    if not data:
+        return "No image received"
 
-    img = np.array(img) / 255.0
-    img = np.transpose(img, (2, 0, 1))
+    image_data = data.split(b',')[1]
+    image_bytes = base64.b64decode(image_data)
 
-    img = torch.tensor(img, dtype=torch.float32).unsqueeze(0)
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img = img.resize((224,224))
+
+    img = np.array(img)/255.0
+    img = np.transpose(img,(2,0,1))
+    img = torch.tensor(img,dtype=torch.float32).unsqueeze(0)
 
     with torch.no_grad():
         output = model(img)
         prob = torch.sigmoid(output)
         pred = (prob > 0.5).int().item()
 
-    if pred == 1:
-        return "Drowsy"
-    else:
-        return "Not Drowsy"
+    return "Drowsy" if pred==1 else "Not Drowsy"
 
 
 if __name__ == "__main__":
