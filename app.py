@@ -3,11 +3,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 from PIL import Image
-import base64
-import io
 
 app = Flask(__name__)
 
+# ---------------------------
+# CNN MODEL
+# ---------------------------
 class CNNModel(nn.Module):
     def __init__(self):
         super(CNNModel, self).__init__()
@@ -40,49 +41,62 @@ class CNNModel(nn.Module):
         return x
 
 
+# ---------------------------
+# LOAD TRAINED MODEL
+# ---------------------------
 model = CNNModel()
-model.load_state_dict(torch.load("driver_drowsiness_model.pth", map_location="cpu"))
+model.load_state_dict(
+    torch.load("driver_drowsiness_model.pth", map_location=torch.device("cpu"))
+)
 model.eval()
 
 
+# ---------------------------
+# HOME PAGE
+# ---------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
+# ---------------------------
+# PREDICTION ROUTE
+# ---------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    img = None
-
-    # 1️⃣ Check file upload
-    if "image" in request.files:
-        file = request.files["image"]
-        if file.filename != "":
-            img = Image.open(file).convert("RGB")
-
-    # 2️⃣ Check webcam base64 image
-    elif request.data:
-        data = request.data.decode("utf-8")
-        image_data = data.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-    if img is None:
+    if "image" not in request.files:
         return "No image received"
 
-    img = img.resize((224,224))
-    img = np.array(img)/255.0
-    img = np.transpose(img,(2,0,1))
-    img = torch.tensor(img,dtype=torch.float32).unsqueeze(0)
+    file = request.files["image"]
 
-    with torch.no_grad():
-        output = model(img)
-        prob = torch.sigmoid(output)
-        pred = (prob > 0.5).int().item()
+    if file.filename == "":
+        return "No file selected"
 
-    return "Drowsy" if pred==1 else "Not Drowsy"
+    try:
+        img = Image.open(file).convert("RGB")
+        img = img.resize((224, 224))
+
+        img = np.array(img) / 255.0
+        img = np.transpose(img, (2, 0, 1))
+        img = torch.tensor(img, dtype=torch.float32).unsqueeze(0)
+
+        with torch.no_grad():
+            output = model(img)
+            prob = torch.sigmoid(output)
+            pred = (prob > 0.5).int().item()
+
+        if pred == 1:
+            return "Drowsy"
+        else:
+            return "Not Drowsy"
+
+    except Exception as e:
+        return f"Error processing image: {str(e)}"
 
 
+# ---------------------------
+# RUN FLASK
+# ---------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
