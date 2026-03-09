@@ -6,7 +6,17 @@
 
 <body>
 
-<h2>Driver Drowsiness Detection (Webcam)</h2>
+<h2>Driver Drowsiness Detection</h2>
+
+<h3>Upload Image</h3>
+<form action="/predict" method="post" enctype="multipart/form-data">
+<input type="file" name="image" required>
+<button type="submit">Predict</button>
+</form>
+
+<hr>
+
+<h3>Webcam Detection</h3>
 
 <video id="video" width="320" height="240" autoplay></video>
 <br><br>
@@ -40,7 +50,7 @@ body:data
 })
 .then(res=>res.text())
 .then(data=>{
-document.getElementById("result").innerText = "Prediction: " + data;
+document.getElementById("result").innerText="Prediction: "+data;
 });
 
 }
