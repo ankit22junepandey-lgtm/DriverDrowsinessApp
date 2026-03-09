@@ -28,6 +28,7 @@ class CNNModel(nn.Module):
             nn.Flatten(),
             nn.Linear(86528, 128),
             nn.ReLU(),
+            nn.Dropout(0.5),
             nn.Linear(128, 2)
         )
 
