@@ -45,9 +45,11 @@ class CNNModel(nn.Module):
 # LOAD TRAINED MODEL
 # ---------------------------
 model = CNNModel()
+
 model.load_state_dict(
     torch.load("driver_drowsiness_model.pth", map_location=torch.device("cpu"))
 )
+
 model.eval()
 
 
@@ -74,13 +76,22 @@ def predict():
         return "No file selected"
 
     try:
+        # open image
         img = Image.open(file).convert("RGB")
+
+        # resize to model input size
         img = img.resize((224, 224))
 
+        # convert to numpy
         img = np.array(img) / 255.0
+
+        # convert HWC → CHW
         img = np.transpose(img, (2, 0, 1))
+
+        # convert to tensor
         img = torch.tensor(img, dtype=torch.float32).unsqueeze(0)
 
+        # prediction
         with torch.no_grad():
             output = model(img)
             prob = torch.sigmoid(output)
@@ -96,7 +107,7 @@ def predict():
 
 
 # ---------------------------
-# RUN FLASK
+# RUN FLASK APP
 # ---------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=7860)
