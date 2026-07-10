@@ -1,35 +1,60 @@
-<script>
+<!DOCTYPE html>
+<html>
 
-navigator.mediaDevices.getUserMedia({video:true})
-.then(stream=>{
-document.getElementById("video").srcObject = stream;
-});
+<head>
+    <title>Driver Drowsiness Detection</title>
+</head>
 
-function capture(){
+<body>
 
-let video = document.getElementById("video");
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
+    <h2>Driver Drowsiness Detection</h2>
 
-ctx.drawImage(video,0,0,224,224);
+    <video id="video" width="400" height="300" autoplay></video>
+    <br><br>
 
-// convert image to blob
-canvas.toBlob(function(blob){
+    <button onclick="capture()">Predict</button>
 
-let formData = new FormData();
-formData.append("image", blob, "webcam.jpg");
+    <br><br>
 
-fetch("/predict",{
-method:"POST",
-body:formData
-})
-.then(res=>res.text())
-.then(data=>{
-document.getElementById("result").innerText = "Prediction: " + data;
-});
+    <canvas id="canvas" width="224" height="224" style="display:none;"></canvas>
 
-},"image/jpeg");
+    <h3 id="result"></h3>
 
-}
+    <script>
 
-</script>
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                document.getElementById("video").srcObject = stream;
+            });
+
+        function capture() {
+
+            let video = document.getElementById("video");
+            let canvas = document.getElementById("canvas");
+            let ctx = canvas.getContext("2d");
+
+            ctx.drawImage(video, 0, 0, 224, 224);
+
+            canvas.toBlob(function (blob) {
+
+                let formData = new FormData();
+                formData.append("image", blob, "webcam.jpg");
+
+                fetch("/predict", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(res => res.text())
+                .then(data => {
+                    document.getElementById("result").innerText = "Prediction: " + data;
+                });
+
+            }, "image/jpeg");
+
+        }
+
+    </script>
+
+</body>
+
+</html>
