@@ -1,113 +1,122 @@
 from flask import Flask, render_template, request
 import torch
 import torch.nn as nn
-import numpy as np
+from torchvision import transforms
 from PIL import Image
 
 app = Flask(__name__)
 
-# ---------------------------
-# CNN MODEL
-# ---------------------------
-class CNNModel(nn.Module):
+# -----------------------------
+# DEVICE
+# -----------------------------
+device = torch.device("cpu")
+
+# -----------------------------
+# MODEL
+# -----------------------------
+class CNN(nn.Module):
     def __init__(self):
-        super(CNNModel, self).__init__()
+        super(CNN, self).__init__()
 
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 32, 3),
+            nn.Conv2d(3,32,3),
             nn.ReLU(),
             nn.MaxPool2d(2),
 
-            nn.Conv2d(32, 64, 3),
+            nn.Conv2d(32,64,3),
             nn.ReLU(),
             nn.MaxPool2d(2),
 
-            nn.Conv2d(64, 128, 3),
+            nn.Conv2d(64,128,3),
             nn.ReLU(),
             nn.MaxPool2d(2)
         )
 
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(86528, 128),
+            nn.Linear(128*26*26,128),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(128, 1)
+            nn.Linear(128,1),
+            nn.Sigmoid()
         )
 
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+    def forward(self,x):
+        x=self.conv_layers(x)
+        x=self.fc_layers(x)
         return x
 
 
-# ---------------------------
-# LOAD TRAINED MODEL
-# ---------------------------
-model = CNNModel()
+# -----------------------------
+# LOAD MODEL
+# -----------------------------
+model = CNN()
 
 model.load_state_dict(
-    torch.load("driver_drowsiness_model.pth", map_location=torch.device("cpu"))
+    torch.load(
+        "driver_Adrowsiness_model_fp16.pth",
+        map_location=device
+    )
 )
+
+# Convert FP16 weights back to float32
+model.float()
 
 model.eval()
 
 
-# ---------------------------
-# HOME PAGE
-# ---------------------------
+# -----------------------------
+# IMAGE TRANSFORM
+# -----------------------------
+transform = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.5]*3,[0.5]*3)
+])
+
+
+# -----------------------------
+# HOME
+# -----------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-# ---------------------------
-# PREDICTION ROUTE
-# ---------------------------
+# -----------------------------
+# PREDICT
+# -----------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
 
     if "image" not in request.files:
-        return "No image received"
+        return "No image uploaded"
 
     file = request.files["image"]
 
     if file.filename == "":
-        return "No file selected"
+        return "No image selected"
 
-    try:
-        # open image
-        img = Image.open(file).convert("RGB")
+    image = Image.open(file).convert("RGB")
 
-        # resize to model input size
-        img = img.resize((224, 224))
+    image_tensor = transform(image).unsqueeze(0)
 
-        # convert to numpy
-        img = np.array(img) / 255.0
+    with torch.no_grad():
 
-        # convert HWC → CHW
-        img = np.transpose(img, (2, 0, 1))
+        output = model(image_tensor)
 
-        # convert to tensor
-        img = torch.tensor(img, dtype=torch.float32).unsqueeze(0)
+        score = output.item()
 
-        # prediction
-        with torch.no_grad():
-            output = model(img)
-            prob = torch.sigmoid(output)
-            pred = (prob > 0.5).int().item()
+    if score > 0.5:
+        result = f"Non Drowsy ({score*100:.2f}%)"
+    else:
+        result = f"Drowsy ({(1-score)*100:.2f}%)"
 
-        if pred == 1:
-            return "Drowsy"
-        else:
-            return "Not Drowsy"
-
-    except Exception as e:
-        return f"Error processing image: {str(e)}"
+    return result
 
 
-# ---------------------------
-# RUN FLASK APP
-# ---------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7860)
+# -----------------------------
+# RUN
+# -----------------------------
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=7860)
